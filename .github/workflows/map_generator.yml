@@ -24,32 +24,36 @@ on:
         required: true
         default: '河南省'
 
+# 💥 自动授予代码推送权限，免去手动设置 💥
+permissions:
+  contents: write
+
 jobs:
   build_map:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. 获取代码和数据库
     - name: 获取仓库代码
       uses: actions/checkout@v4
 
-    # 2. 配置 Python 环境
     - name: 设置 Python 3.12
       uses: actions/setup-python@v4
       with:
         python-version: '3.12'
 
-    # 3. 安装依赖库
     - name: 安装依赖
       run: |
         python -m pip install --upgrade pip
         pip install pandas pyarrow duckdb Pillow terraink-py
 
-    # 4. 转换数据库
+    # 💥 核心修改：直接从你的 workouts_page 仓库下载最新 data.db 💥
+    - name: 下载最新 data.db
+      run: |
+        wget https://raw.githubusercontent.com/yaoshubin3574/workouts_page/master/run_page/data.db -O data.db
+
     - name: 转换 data.db 到 data.parquet
       run: python convert_db.py
 
-    # 5. 生成地图 (接收你在网页上填写的参数)
     - name: 生成 SVG 海报
       run: |
         python generate_poster.py \
@@ -59,7 +63,6 @@ jobs:
           --city "${{ github.event.inputs.city }}" \
           --province "${{ github.event.inputs.province }}"
 
-    # 6. 将生成的 SVG 上传保存回你的仓库
     - name: 提交并推送到 GitHub
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
