@@ -177,7 +177,7 @@ svg_injection_lines.append('</g>')
 with open(result.files[0], 'r', encoding='utf-8') as f:
     svg_content = f.read()
 
-# 强制灰度化底层所有带有黄/棕色的地图线条
+# 强制灰度化底层黄/棕色道路
 def color_to_gray(match):
     val = match.group(1)
     try:
@@ -201,23 +201,19 @@ def rgb_to_gray(match):
 svg_content = re.sub(r'#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})\b', color_to_gray, svg_content)
 svg_content = re.sub(r'rgb\((\d+),\s*(\d+),\s*(\d+)\)', rgb_to_gray, svg_content)
 
-# 净化底层：一键抹除原生文字和线条
+# 净化底层：一键抹除所有原生文字和线条
 svg_content = re.sub(r'<text\b.*?</text>', '', svg_content, flags=re.IGNORECASE | re.DOTALL)
 svg_content = re.sub(r'<line\b.*?>', '', svg_content, flags=re.IGNORECASE | re.DOTALL)
 
 # ==========================================
-# 💥 全新排版：居中大标题 + 竖线分割看板 💥
+# 💥 全新排版：竖线向上移动对齐 💥
 # ==========================================
-# 滤镜层
 dark_glass = '<rect width="100%" height="100%" fill="#050505" opacity="0.5" />\n'
 
-# 整体下移至 0.82 比例 (越接近1越靠下)
 stats_y_pos = height_px * 0.82
 
-# 绝对定位的城市标题 (居中并在数据看板正上方)
 city_title_block = f'<text x="{width_px / 2:.1f}" y="{stats_y_pos - 120:.1f}" font-family="Arial, Helvetica, sans-serif" font-size="{width_px * 0.045:.1f}" font-weight="bold" fill="#f0f0f0" letter-spacing="16" text-anchor="middle" opacity="0.9">{args.city.upper()}</text>\n'
 
-# 数据大看板 (增加半透明竖线分割，整体下沉)
 stats_block = (
     f'<g id="stats_block" transform="translate({width_px/2:.1f}, {stats_y_pos:.1f})" fill="#f0f0f0" font-family="Arial, Helvetica, sans-serif" font-size="60" text-anchor="middle">\n'
     
@@ -229,8 +225,8 @@ stats_block = (
     f'    </text>\n'
     f'  </g>\n'
 
-    # 分割线 1
-    f'  <line x1="-190" y1="-20" x2="-190" y2="90" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
+    # 💥 分割线 1：向上移动 20 像素 (y1="-40", y2="70") 💥
+    f'  <line x1="-190" y1="-40" x2="-190" y2="70" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
 
     f'  <g transform="translate(0, 0)">\n'
     f'    <text>\n'
@@ -239,8 +235,8 @@ stats_block = (
     f'    </text>\n'
     f'  </g>\n'
 
-    # 分割线 2
-    f'  <line x1="190" y1="-20" x2="190" y2="90" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
+    # 💥 分割线 2：向上移动 20 像素 (y1="-40", y2="70") 💥
+    f'  <line x1="190" y1="-40" x2="190" y2="70" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
 
     f'  <g transform="translate(380, 0)">\n'
     f'    <text>\n'
@@ -257,8 +253,8 @@ stats_block = (
     f'    </text>\n'
     f'  </g>\n'
 
-    # 分割线 3
-    f'  <line x1="0" y1="180" x2="0" y2="275" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
+    # 💥 分割线 3：向上平移 15 像素 (y1="165", y2="260") 💥
+    f'  <line x1="0" y1="165" x2="0" y2="260" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
 
     f'  <g transform="translate(190, 200)">\n'
     f'    <text>\n'
