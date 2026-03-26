@@ -6,11 +6,11 @@ on:
       lon:
         description: '中心点经度'
         required: true
-        default: '114'
+        default: '113.93383920'
       lat:
         description: '中心点纬度'
         required: true
-        default: '35'
+        default: '35.30718441'
       distance:
         description: '距离(米)'
         required: true
