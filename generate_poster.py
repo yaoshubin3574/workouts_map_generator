@@ -6,7 +6,6 @@ import math
 from terraink_py import PosterRequest, generate_poster
 from terraink_py.api import MercatorProjector
 
-# --- 接收 GitHub Actions 传来的参数 (💥 移除了 province) ---
 parser = argparse.ArgumentParser(description="生成运动轨迹海报")
 parser.add_argument('--lat', type=float, required=True, help="中心点纬度")
 parser.add_argument('--lon', type=float, required=True, help="中心点经度")
@@ -68,17 +67,17 @@ result = generate_poster(
         formats=("svg",), 
         lat=args.lat,  
         lon=args.lon, 
-        title="",        # 💥 彻底置空，全部通过自定义逻辑排版 💥
+        title="",        
         subtitle="",     
         theme="dark",   
         width_cm=21,
-        height_cm=29.7,  # 恢复严格的 A4 大小
+        height_cm=29.7,  
         distance_m=args.distance, 
         include_buildings=True,
     )
 )
 
-print("步骤 2/3：读取并汇总云端运动 data.parquet...")
+print("步骤 2/3：读取并汇总云端运动数据...")
 
 poster_bounds = result.bounds.poster_bounds
 width_px = result.size.width
@@ -174,85 +173,109 @@ svg_injection_lines.append('</g>')
 with open(result.files[0], 'r', encoding='utf-8') as f:
     svg_content = f.read()
 
-# 💥 彻底净化底层：一键抹除所有原生标题和副标题文本 💥
+# 强制灰度化底层黄/棕色道路
+def color_to_gray(match):
+    val = match.group(1)
+    try:
+        if len(val) == 3:
+            r, g, b = int(val[0], 16)*17, int(val[1], 16)*17, int(val[2], 16)*17
+        else:
+            r, g, b = int(val[0:2], 16), int(val[2:4], 16), int(val[4:6], 16)
+        lum = int((0.299 * r + 0.587 * g + 0.114 * b) * 0.7)
+        return f'#{lum:02x}{lum:02x}{lum:02x}'
+    except:
+        return f'#{val}'
+
+def rgb_to_gray(match):
+    try:
+        r, g, b = int(match.group(1)), int(match.group(2)), int(match.group(3))
+        lum = int((0.299 * r + 0.587 * g + 0.114 * b) * 0.7)
+        return f'rgb({lum},{lum},{lum})'
+    except:
+        return match.group(0)
+
+svg_content = re.sub(r'#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})\b', color_to_gray, svg_content)
+svg_content = re.sub(r'rgb\((\d+),\s*(\d+),\s*(\d+)\)', rgb_to_gray, svg_content)
+
+# 净化底层：一键抹除所有原生文字和线条
 svg_content = re.sub(r'<text\b.*?</text>', '', svg_content, flags=re.IGNORECASE | re.DOTALL)
 svg_content = re.sub(r'<line\b.*?>', '', svg_content, flags=re.IGNORECASE | re.DOTALL)
 
 # ==========================================
-# 💥 全新排版：地名样式 + 数据下移 💥
+# 💥 全新精准排版：字距、安全边距、恢复旧版高级布局 💥
 # ==========================================
-# 滤镜层
 dark_glass = '<rect width="100%" height="100%" fill="#050505" opacity="0.5" />\n'
 
-# 💥 核心修改 1：地名样式、粗细和字母间距 💥
-# 字体修改为一个更克制、粗细适中的现代字体。
-city_font_family = "'Oswald', 'Avenir Next Condensed', 'Helvetica Neue Condensed', sans-serif"
-# 粗细改为正常，使字体看起来粗细适中，而不是特别粗。💥
-city_font_weight = "normal" 
-# xml:space="preserve" 完美保证空格。 letter-spacing 加大。💥
-# 💥 核心修改：加大字母间距。根据 GUANGZHOU 的图片，它几乎是字母本身的宽度。
-city_letter_spacing = f"{width_px * 0.035:.1f}" # 动态像素值
+# 考虑到整个 stats_block 有 360px 的内部高度，将其整体置于 height_px - 480，
+# 这样最底部的文字大约落在 height_px - 120 处，保留完美的底部留白，绝对不会再被裁掉！
+stats_y_pos = height_px - 480
 
-# 💥 核心修改 2：数据整体向下移动到也边距的 2/3 💥
-# 调整数据大看板的 stats_y_pos。💥
-stats_y_pos = height_px - 300 # 💥 核心修改 2：整体下移 💥
+# 城市名放在数据看板上方 220 像素处，彻底拉开呼吸间距
+city_y_pos = stats_y_pos - 220
 
-# 💥 构建绝对定位、样式更新的城市标题 💥
-# 并使用 letter-spacing。
-city_title_block = f'<text x="{width_px / 2:.1f}" y="{stats_y_pos - 120:.1f}" font-family="{city_font_family}" font-size="{width_px * 0.045:.1f}" font-weight="{city_font_weight}" fill="#f0f0f0" xml:space="preserve" letter-spacing="{city_letter_spacing}" text-anchor="middle" opacity="0.9">{args.city.upper()}</text>\n'
+# 💥 地名排版：极宽字母间距，加粗现代字体 💥
+city_letter_spacing = f"{width_px * 0.045:.1f}"
+city_title_block = f'<text x="{width_px / 2:.1f}" y="{city_y_pos:.1f}" font-family="Arial, Helvetica, sans-serif" font-size="{width_px * 0.06:.1f}" font-weight="bold" fill="#f0f0f0" xml:space="preserve" letter-spacing="{city_letter_spacing}" text-anchor="middle" opacity="0.9">{args.city.upper()}</text>\n'
 
-# 💥 构建数据看板 (去图标、1.5倍字号、精简间距、强制保留空格) 💥
-# 字号翻倍：20 -> 30。将空格包裹在普通文本 tspan 内以完美控制间距
+# 💥 数据大看板 (完美居中短竖线 + 加粗超大数字 + 恢复原版排版) 💥
 stats_block = (
-    f'<g id="stats_block" transform="translate({width_px/2:.1f}, {stats_y_pos:.1f})" fill="#f0f0f0" font-family="Arial, Helvetica, sans-serif" font-size="30" text-anchor="middle">\n'
+    f'<g id="stats_block" transform="translate({width_px/2:.1f}, {stats_y_pos:.1f})" fill="#f0f0f0" font-family="Arial, Helvetica, sans-serif" font-size="45" text-anchor="middle">\n'
     
-    # --- 第一行: Runs, Rides, Hikes (间距缩小为 380) ---
-    f'  <g transform="translate(-380, 0)">\n'
+    # --- 第一行: Runs, Rides, Hikes ---
+    f'  <g transform="translate(-400, 0)">\n'
     f'    <text>\n'
-    f'      <tspan font-weight="bold">{run_count}</tspan><tspan xml:space="preserve"> Runs</tspan>\n'
-    f'      <tspan x="0" dy="55" font-weight="bold">{run_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
+    f'      <tspan font-weight="bold" font-size="55">{run_count}</tspan><tspan xml:space="preserve"> Runs</tspan>\n'
+    f'      <tspan x="0" dy="75" font-weight="bold" font-size="55">{run_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
     f'    </text>\n'
     f'  </g>\n'
+
+    # 分割线 1
+    f'  <line x1="-200" y1="-30" x2="-200" y2="70" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
 
     f'  <g transform="translate(0, 0)">\n'
     f'    <text>\n'
-    f'      <tspan font-weight="bold">{ride_count}</tspan><tspan xml:space="preserve"> Rides</tspan>\n'
-    f'      <tspan x="0" dy="55" font-weight="bold">{ride_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
+    f'      <tspan font-weight="bold" font-size="55">{ride_count}</tspan><tspan xml:space="preserve"> Rides</tspan>\n'
+    f'      <tspan x="0" dy="75" font-weight="bold" font-size="55">{ride_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
     f'    </text>\n'
     f'  </g>\n'
 
-    f'  <g transform="translate(380, 0)">\n'
+    # 分割线 2
+    f'  <line x1="200" y1="-30" x2="200" y2="70" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
+
+    f'  <g transform="translate(400, 0)">\n'
     f'    <text>\n'
-    f'      <tspan font-weight="bold">{hike_count}</tspan><tspan xml:space="preserve"> Hikes</tspan>\n'
-    f'      <tspan x="0" dy="55" font-weight="bold">{hike_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
+    f'      <tspan font-weight="bold" font-size="55">{hike_count}</tspan><tspan xml:space="preserve"> Hikes</tspan>\n'
+    f'      <tspan x="0" dy="75" font-weight="bold" font-size="55">{hike_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
     f'    </text>\n'
     f'  </g>\n'
 
-    # --- 第二行: BPM, Elev (居中平衡，去除 Walks) ---
-    f'  <g transform="translate(-190, 150)">\n'
+    # --- 第二行: BPM, Elev ---
+    f'  <g transform="translate(-200, 180)">\n'
     f'    <text>\n'
-    f'      <tspan font-weight="bold">{int(total_avg_hr)}</tspan><tspan xml:space="preserve"> BPM</tspan>\n'
-    f'      <tspan x="0" dy="50" font-size="25" opacity="0.9">Avg Heart Rate</tspan>\n'
+    f'      <tspan font-weight="bold" font-size="55">{int(total_avg_hr)}</tspan><tspan xml:space="preserve"> BPM</tspan>\n'
+    f'      <tspan x="0" dy="70" font-size="40" opacity="0.9">Avg Heart Rate</tspan>\n'
     f'    </text>\n'
     f'  </g>\n'
 
-    f'  <g transform="translate(190, 150)">\n'
+    # 分割线 3
+    f'  <line x1="0" y1="150" x2="0" y2="250" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
+
+    f'  <g transform="translate(200, 180)">\n'
     f'    <text>\n'
-    f'      <tspan font-weight="bold">{int(total_elev_g)}</tspan><tspan xml:space="preserve"> m</tspan>\n'
-    f'      <tspan x="0" dy="50" font-size="25" opacity="0.9">Elevation Gain</tspan>\n'
+    f'      <tspan font-weight="bold" font-size="55">{int(total_elev_g)}</tspan><tspan xml:space="preserve"> m</tspan>\n'
+    f'      <tspan x="0" dy="70" font-size="40" opacity="0.9">Elevation Gain</tspan>\n'
     f'    </text>\n'
     f'  </g>\n'
 
-    # --- 第三行: Total (去除了背景遮罩) ---
-    f'  <g transform="translate(0, 320)">\n'
+    # --- 第三行: Total 汇总 ---
+    f'  <g transform="translate(0, 360)">\n'
     f'    <text>\n'
-    f'      <tspan font-weight="bold">{total_count}</tspan><tspan xml:space="preserve"> Workouts Total </tspan><tspan font-weight="bold">{total_dist_km:.1f}</tspan><tspan xml:space="preserve"> km / </tspan><tspan font-weight="bold">{total_time_h}</tspan><tspan xml:space="preserve"> h </tspan><tspan font-weight="bold">{total_time_m}</tspan><tspan xml:space="preserve"> min</tspan>\n'
+    f'      <tspan font-weight="bold" font-size="55">{total_count}</tspan><tspan xml:space="preserve"> Workouts Total </tspan><tspan font-weight="bold" font-size="55">{total_dist_km:.1f}</tspan><tspan xml:space="preserve"> km / </tspan><tspan font-weight="bold" font-size="55">{total_time_h}</tspan><tspan xml:space="preserve"> h </tspan><tspan font-weight="bold" font-size="55">{total_time_m}</tspan><tspan xml:space="preserve"> min</tspan>\n'
     f'    </text>\n'
     f'  </g>\n'
     f'</g>\n'
 )
 
-# 组合所有新图层并一次性注入 SVG
 final_injection = [
     dark_glass,
     "\n".join(svg_injection_lines),
