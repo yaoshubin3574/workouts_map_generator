@@ -108,7 +108,7 @@ with duckdb.connect() as conn:
         fallback_rows = conn.execute(fallback_sql).fetchall()
         raw_rows = [(str(r[0]), str(r[1]), 0.0, 0.0, 0.0, 0.0) for r in fallback_rows]
 
-print("步骤 3/3：注入矢量轨迹与全新排版统计面板...")
+print("步骤 3/3：注入矢量轨迹与全新单行排版统计面板...")
 
 color_map = {
     'Run': '#FC4C02', 'Cycling': '#00DFD8', 'Ride': '#00DFD8',
@@ -202,73 +202,72 @@ svg_content = re.sub(r'<text\b.*?</text>', '', svg_content, flags=re.IGNORECASE 
 svg_content = re.sub(r'<line\b.*?>', '', svg_content, flags=re.IGNORECASE | re.DOTALL)
 
 # ==========================================
-# 💥 全新精准排版：字距、安全边距、恢复旧版高级布局 💥
+# 💥 全新排版：间距缩小、单行显示 💥
 # ==========================================
 dark_glass = '<rect width="100%" height="100%" fill="#050505" opacity="0.5" />\n'
 
-# 考虑到整个 stats_block 有 360px 的内部高度，将其整体置于 height_px - 480，
-# 这样最底部的文字大约落在 height_px - 120 处，保留完美的底部留白，绝对不会再被裁掉！
-stats_y_pos = height_px - 480
+# 由于改成了单行，总体高度变小，将其固定在底部往上约 380 像素的位置
+stats_y_pos = height_px - 380
 
-# 城市名放在数据看板上方 220 像素处，彻底拉开呼吸间距
-city_y_pos = stats_y_pos - 220
+# 💥 城市名下压：间距缩小到原本的 2/3 (从 -220 改为 -150) 💥
+city_y_pos = stats_y_pos - 150
 
-# 💥 地名排版：极宽字母间距，加粗现代字体 💥
 city_letter_spacing = f"{width_px * 0.045:.1f}"
 city_title_block = f'<text x="{width_px / 2:.1f}" y="{city_y_pos:.1f}" font-family="Arial, Helvetica, sans-serif" font-size="{width_px * 0.06:.1f}" font-weight="bold" fill="#f0f0f0" xml:space="preserve" letter-spacing="{city_letter_spacing}" text-anchor="middle" opacity="0.9">{args.city.upper()}</text>\n'
 
-# 💥 数据大看板 (完美居中短竖线 + 加粗超大数字 + 恢复原版排版) 💥
+# 💥 数据大看板：彻底改为单行排版 (中间用空格拉开距离) 💥
+# 将间距加大至 420 以容纳单行更宽的文本
 stats_block = (
     f'<g id="stats_block" transform="translate({width_px/2:.1f}, {stats_y_pos:.1f})" fill="#f0f0f0" font-family="Arial, Helvetica, sans-serif" font-size="45" text-anchor="middle">\n'
     
-    # --- 第一行: Runs, Rides, Hikes ---
-    f'  <g transform="translate(-400, 0)">\n'
+    # --- 第一行: Runs, Rides, Hikes (合并为单行) ---
+    f'  <g transform="translate(-420, 0)">\n'
     f'    <text>\n'
-    f'      <tspan font-weight="bold" font-size="55">{run_count}</tspan><tspan xml:space="preserve"> Runs</tspan>\n'
-    f'      <tspan x="0" dy="75" font-weight="bold" font-size="55">{run_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
+    f'      <tspan font-weight="bold" font-size="55">{run_count}</tspan><tspan xml:space="preserve"> Runs   </tspan>\n'
+    f'      <tspan font-weight="bold" font-size="55">{run_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
     f'    </text>\n'
     f'  </g>\n'
 
     # 分割线 1
-    f'  <line x1="-200" y1="-30" x2="-200" y2="70" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
+    f'  <line x1="-210" y1="-45" x2="-210" y2="15" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
 
     f'  <g transform="translate(0, 0)">\n'
     f'    <text>\n'
-    f'      <tspan font-weight="bold" font-size="55">{ride_count}</tspan><tspan xml:space="preserve"> Rides</tspan>\n'
-    f'      <tspan x="0" dy="75" font-weight="bold" font-size="55">{ride_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
+    f'      <tspan font-weight="bold" font-size="55">{ride_count}</tspan><tspan xml:space="preserve"> Rides   </tspan>\n'
+    f'      <tspan font-weight="bold" font-size="55">{ride_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
     f'    </text>\n'
     f'  </g>\n'
 
     # 分割线 2
-    f'  <line x1="200" y1="-30" x2="200" y2="70" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
+    f'  <line x1="210" y1="-45" x2="210" y2="15" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
 
-    f'  <g transform="translate(400, 0)">\n'
+    f'  <g transform="translate(420, 0)">\n'
     f'    <text>\n'
-    f'      <tspan font-weight="bold" font-size="55">{hike_count}</tspan><tspan xml:space="preserve"> Hikes</tspan>\n'
-    f'      <tspan x="0" dy="75" font-weight="bold" font-size="55">{hike_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
+    f'      <tspan font-weight="bold" font-size="55">{hike_count}</tspan><tspan xml:space="preserve"> Hikes   </tspan>\n'
+    f'      <tspan font-weight="bold" font-size="55">{hike_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
     f'    </text>\n'
     f'  </g>\n'
 
-    # --- 第二行: BPM, Elev ---
-    f'  <g transform="translate(-200, 180)">\n'
+    # --- 第二行: BPM, Elev (合并为单行，高度整体上提) ---
+    f'  <g transform="translate(-210, 120)">\n'
     f'    <text>\n'
-    f'      <tspan font-weight="bold" font-size="55">{int(total_avg_hr)}</tspan><tspan xml:space="preserve"> BPM</tspan>\n'
-    f'      <tspan x="0" dy="70" font-size="40" opacity="0.9">Avg Heart Rate</tspan>\n'
+    f'      <tspan font-weight="bold" font-size="55">{int(total_avg_hr)}</tspan><tspan xml:space="preserve"> BPM   </tspan>\n'
+    f'      <tspan font-size="45" opacity="0.9">Avg Heart Rate</tspan>\n'
     f'    </text>\n'
     f'  </g>\n'
 
     # 分割线 3
-    f'  <line x1="0" y1="150" x2="0" y2="250" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
+    f'  <line x1="0" y1="75" x2="0" y2="135" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
 
-    f'  <g transform="translate(200, 180)">\n'
+    f'  <g transform="translate(210, 120)">\n'
     f'    <text>\n'
-    f'      <tspan font-weight="bold" font-size="55">{int(total_elev_g)}</tspan><tspan xml:space="preserve"> m</tspan>\n'
-    f'      <tspan x="0" dy="70" font-size="40" opacity="0.9">Elevation Gain</tspan>\n'
+    f'      <tspan font-weight="bold" font-size="55">{int(total_elev_g)}</tspan><tspan xml:space="preserve"> m   </tspan>\n'
+    f'      <tspan font-size="45" opacity="0.9">Elevation Gain</tspan>\n'
     f'    </text>\n'
     f'  </g>\n'
 
-    # --- 第三行: Total 汇总 ---
-    f'  <g transform="translate(0, 360)">\n'
+    # --- 第三行: Total 汇总 (高度整体上提) ---
+    f'  <g transform="translate(0, 240)">\n'
     f'    <text>\n'
     f'      <tspan font-weight="bold" font-size="55">{total_count}</tspan><tspan xml:space="preserve"> Workouts Total </tspan><tspan font-weight="bold" font-size="55">{total_dist_km:.1f}</tspan><tspan xml:space="preserve"> km / </tspan><tspan font-weight="bold" font-size="55">{total_time_h}</tspan><tspan xml:space="preserve"> h </tspan><tspan font-weight="bold" font-size="55">{total_time_m}</tspan><tspan xml:space="preserve"> min</tspan>\n'
     f'    </text>\n'
