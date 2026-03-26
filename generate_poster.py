@@ -108,7 +108,7 @@ with duckdb.connect() as conn:
         fallback_rows = conn.execute(fallback_sql).fetchall()
         raw_rows = [(str(r[0]), str(r[1]), 0.0, 0.0, 0.0, 0.0) for r in fallback_rows]
 
-print("步骤 3/3：注入矢量轨迹与终极自适应排版...")
+print("步骤 3/3：注入矢量轨迹与极简美学排版...")
 
 color_map = {
     'Run': '#FC4C02', 'Cycling': '#00DFD8', 'Ride': '#00DFD8',
@@ -197,37 +197,39 @@ def rgb_to_gray(match):
 svg_content = re.sub(r'#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})\b', color_to_gray, svg_content)
 svg_content = re.sub(r'rgb\((\d+),\s*(\d+),\s*(\d+)\)', rgb_to_gray, svg_content)
 
-# 净化底层：一键抹除所有原生文字和线条
+# 净化底层
 svg_content = re.sub(r'<text\b.*?</text>', '', svg_content, flags=re.IGNORECASE | re.DOTALL)
 svg_content = re.sub(r'<line\b.*?>', '', svg_content, flags=re.IGNORECASE | re.DOTALL)
 
 # ==========================================
-# 💥 终极防重叠自适应排版 💥
+# 💥 极简美学自适应排版 (所有间距变为 2/3) 💥
 # ==========================================
 dark_glass = '<rect width="100%" height="100%" fill="#050505" opacity="0.5" />\n'
 
-# 动态提取基于分辨率的绝对高度和宽度
-city_y_pos = height_px * 0.78       # 城市名在画布 78% 的高度
-stats_y_pos = height_px * 0.83      # 看板在画布 83% 的高度
-row2_y = height_px * 0.04           # 第二行向下偏移
-row3_y = height_px * 0.08           # 第三行向下偏移
+# 3. 下侧页边距缩小到现在的 2/3 (整体下移到 88.5%)
+city_y_pos = height_px * 0.85       # 地名原为 0.78
+stats_y_pos = height_px * 0.885     # 看板原为 0.83 (到底部距离从 17% 缩为 11.5%)
 
-# 动态提取基于宽度的自适应间隙和字体大小 (再也不用死磕像素数值)
-f_large = width_px * 0.022          # 大字号(数字)
-f_small = width_px * 0.018          # 小字号(文字)
-col3_gap = width_px * 0.34          # 第一排三个元素的间距 (拉长到占画面的 68%)
-col2_gap = width_px * 0.17          # 第二排两个元素的间距
-line3_gap = width_px * 0.17         # 竖线位置正好卡在元素的正中间
+# 2. 数据每行间距缩小到现在的 2/3
+row2_y = height_px * 0.027          # 第二行向下偏移 (原为 0.04)
+row3_y = height_px * 0.053          # 第三行向下偏移 (原为 0.08)
+
+# 1. 每组数据间的横向间距缩小到现在的 2/3
+f_large = width_px * 0.022          # 字体大小保持不变
+f_small = width_px * 0.018          
+col3_gap = width_px * 0.226         # 第一排三列间距 (原为 0.34)
+col2_gap = width_px * 0.113         # 第二排两列间距 (原为 0.17)
+line3_gap = width_px * 0.113        # 竖线对齐位置 (原为 0.17)
 
 # 渲染城市标题
 city_letter_spacing = f"{width_px * 0.045:.1f}"
 city_title_block = f'<text x="{width_px / 2:.1f}" y="{city_y_pos:.1f}" font-family="Arial, Helvetica, sans-serif" font-size="{width_px * 0.06:.1f}" font-weight="bold" fill="#f0f0f0" xml:space="preserve" letter-spacing="{city_letter_spacing}" text-anchor="middle" opacity="0.9">{args.city.upper()}</text>\n'
 
-# 渲染防重叠看板
+# 渲染极简压缩数据看板 (竖线长度也按比例缩短，完美适配缩小后的行距)
 stats_block = (
     f'<g id="stats_block" transform="translate({width_px/2:.1f}, {stats_y_pos:.1f})" fill="#f0f0f0" font-family="Arial, Helvetica, sans-serif" font-size="{f_small:.1f}" text-anchor="middle">\n'
     
-    # --- 第一行: Runs, Rides, Hikes (绝对拉开间距) ---
+    # --- 第一行: Runs, Rides, Hikes ---
     f'  <g transform="translate(-{col3_gap:.1f}, 0)">\n'
     f'    <text>\n'
     f'      <tspan font-weight="bold" font-size="{f_large:.1f}">{run_count}</tspan><tspan xml:space="preserve"> Runs   </tspan>\n'
@@ -235,7 +237,8 @@ stats_block = (
     f'    </text>\n'
     f'  </g>\n'
 
-    f'  <line x1="-{line3_gap:.1f}" y1="-{width_px * 0.018:.1f}" x2="-{line3_gap:.1f}" y2="{width_px * 0.005:.1f}" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
+    # 分割线 1
+    f'  <line x1="-{line3_gap:.1f}" y1="-{width_px * 0.012:.1f}" x2="-{line3_gap:.1f}" y2="{width_px * 0.003:.1f}" stroke="#f0f0f0" stroke-width="3" opacity="0.25" stroke-linecap="round" />\n'
 
     f'  <g transform="translate(0, 0)">\n'
     f'    <text>\n'
@@ -244,7 +247,8 @@ stats_block = (
     f'    </text>\n'
     f'  </g>\n'
 
-    f'  <line x1="{line3_gap:.1f}" y1="-{width_px * 0.018:.1f}" x2="{line3_gap:.1f}" y2="{width_px * 0.005:.1f}" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
+    # 分割线 2
+    f'  <line x1="{line3_gap:.1f}" y1="-{width_px * 0.012:.1f}" x2="{line3_gap:.1f}" y2="{width_px * 0.003:.1f}" stroke="#f0f0f0" stroke-width="3" opacity="0.25" stroke-linecap="round" />\n'
 
     f'  <g transform="translate({col3_gap:.1f}, 0)">\n'
     f'    <text>\n'
@@ -261,7 +265,8 @@ stats_block = (
     f'    </text>\n'
     f'  </g>\n'
 
-    f'  <line x1="0" y1="{row2_y - width_px * 0.015:.1f}" x2="0" y2="{row2_y + width_px * 0.008:.1f}" stroke="#f0f0f0" stroke-width="4" opacity="0.25" stroke-linecap="round" />\n'
+    # 分割线 3
+    f'  <line x1="0" y1="{row2_y - width_px * 0.010:.1f}" x2="0" y2="{row2_y + width_px * 0.005:.1f}" stroke="#f0f0f0" stroke-width="3" opacity="0.25" stroke-linecap="round" />\n'
 
     f'  <g transform="translate({col2_gap:.1f}, {row2_y:.1f})">\n'
     f'    <text>\n'
