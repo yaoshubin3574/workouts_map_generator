@@ -69,7 +69,6 @@ result = generate_poster(
         lon=args.lon, 
         title="",        
         subtitle="",     
-        # 💥 恢复暗色模式，因为它的底色最纯粹，最适合做精准的黑白反转滤镜 💥
         theme="dark",   
         width_cm=21,
         height_cm=29.7,  
@@ -109,7 +108,7 @@ with duckdb.connect() as conn:
         fallback_rows = conn.execute(fallback_sql).fetchall()
         raw_rows = [(str(r[0]), str(r[1]), 0.0, 0.0, 0.0, 0.0) for r in fallback_rows]
 
-print("步骤 3/3：注入矢量轨迹与黑白质感排版...")
+print("步骤 3/3：注入矢量轨迹与极简美学排版...")
 
 color_map = {
     'Run': '#FC4C02', 'Cycling': '#00DFD8', 'Ride': '#00DFD8',
@@ -175,7 +174,7 @@ with open(result.files[0], 'r', encoding='utf-8') as f:
     svg_content = f.read()
 
 # ==========================================
-# 💥 1. 黑白反转滤镜：纯白背景 + 深灰路网 💥
+# 💥 1. 滤镜调色：纯白背景 + 浅灰色路网建筑 💥
 # ==========================================
 def color_to_gray(match):
     val = match.group(1)
@@ -186,12 +185,11 @@ def color_to_gray(match):
             r, g, b = int(val[0:2], 16), int(val[2:4], 16), int(val[4:6], 16)
         lum = 0.299 * r + 0.587 * g + 0.114 * b
         
-        # 判断：如果原色是极暗的背景（比如纯黑），将其变为纯白。
-        # 如果原色是其他有亮度的元素（道路、建筑），将其变为统一深灰色。
+        # 判断：原色是极暗背景则变成纯白；原色是道路建筑则变成浅灰
         if lum < 35:
             return '#ffffff'  # 纯白背景
         else:
-            return '#555555'  # 统一的深灰道路
+            return '#dddddd'  # 💥 统一的浅灰道路建筑 💥
     except:
         return f'#{val}'
 
@@ -202,7 +200,7 @@ def rgb_to_gray(match):
         if lum < 35:
             return 'rgb(255,255,255)'
         else:
-            return 'rgb(85,85,85)' # #555555 的 RGB 值
+            return 'rgb(221,221,221)' # #dddddd 的 RGB 值
     except:
         return match.group(0)
 
@@ -216,9 +214,8 @@ svg_content = re.sub(r'<text\b.*?</text>', '', svg_content, flags=re.IGNORECASE 
 svg_content = re.sub(r'<line\b.*?>', '', svg_content, flags=re.IGNORECASE | re.DOTALL)
 
 # ==========================================
-# 💥 2. 自适应排版：全黑色文本渲染 💥
+# 💥 2. 自适应排版：纯黑文本 💥
 # ==========================================
-# 因为背景变白了，所以我们的前景颜色设为纯黑
 text_color_fg = "#000000"
 
 city_y_pos = height_px * 0.85       
@@ -229,14 +226,14 @@ row3_y = height_px * 0.053
 f_large = width_px * 0.022          
 f_small = width_px * 0.018          
 
-# 渲染城市标题 (纯黑色)
+# 渲染城市标题
 city_letter_spacing = f"{width_px * 0.045:.1f}"
 city_title_block = f'<text x="{width_px / 2:.1f}" y="{city_y_pos:.1f}" font-family="Arial, Helvetica, sans-serif" font-size="{width_px * 0.06:.1f}" font-weight="bold" fill="{text_color_fg}" xml:space="preserve" letter-spacing="{city_letter_spacing}" text-anchor="middle" opacity="0.9">{args.city.upper()}</text>\n'
 
 # 内联的竖线分隔符 (黑色，透明度0.25呈现出高级灰)
 pipe_str = f'<tspan xml:space="preserve" fill="{text_color_fg}" opacity="0.25" font-size="{f_large * 1.1:.1f}">   |   </tspan>'
 
-# 第一行：Runs, Rides, Hikes (单空格，严格对齐)
+# 第一行
 row1_text = (
     f'<tspan font-weight="bold" font-size="{f_large:.1f}">{run_count}</tspan><tspan xml:space="preserve"> Runs </tspan>'
     f'<tspan font-weight="bold" font-size="{f_large:.1f}">{run_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>'
@@ -248,14 +245,14 @@ row1_text = (
     f'<tspan font-weight="bold" font-size="{f_large:.1f}">{hike_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>'
 )
 
-# 第二行：BPM, Elev
+# 第二行
 row2_text = (
     f'<tspan font-weight="bold" font-size="{f_large:.1f}">{int(total_avg_hr)}</tspan><tspan xml:space="preserve"> BPM Avg Heart Rate</tspan>'
     f'{pipe_str}'
     f'<tspan font-weight="bold" font-size="{f_large:.1f}">{int(total_elev_g)}</tspan><tspan xml:space="preserve"> m Elevation Gain</tspan>'
 )
 
-# 第三行：Total
+# 第三行
 row3_text = (
     f'<tspan font-weight="bold" font-size="{f_large:.1f}">{total_count}</tspan><tspan xml:space="preserve"> Workouts Total </tspan>'
     f'<tspan font-weight="bold" font-size="{f_large:.1f}">{total_dist_km:.1f}</tspan><tspan xml:space="preserve"> km / </tspan>'
@@ -272,7 +269,7 @@ stats_block = (
     f'</g>\n'
 )
 
-# 最终注入 (不再注入任何会使画面变暗的暗色遮罩滤镜)
+# 最终注入
 final_injection = [
     "\n".join(svg_injection_lines),
     city_title_block,
@@ -286,4 +283,4 @@ final_path = "colorful-map.svg"
 with open(final_path, 'w', encoding='utf-8') as f:
     f.write(svg_content)
 
-print(f"\n大功告成！白底深灰路网海报已生成：{final_path}")
+print(f"\n大功告成！白底浅灰路网海报已生成：{final_path}")
