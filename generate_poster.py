@@ -69,7 +69,8 @@ result = generate_poster(
         lon=args.lon, 
         title="",        
         subtitle="",     
-        theme="dark",   
+        # 💥 1. 将主题从 'dark' 改为 'light'，背景将变为白色 💥
+        theme="light",   
         width_cm=21,
         height_cm=29.7,  
         distance_m=args.distance, 
@@ -108,8 +109,9 @@ with duckdb.connect() as conn:
         fallback_rows = conn.execute(fallback_sql).fetchall()
         raw_rows = [(str(r[0]), str(r[1]), 0.0, 0.0, 0.0, 0.0) for r in fallback_rows]
 
-print("步骤 3/3：注入矢量轨迹与极简美学排版...")
+print("步骤 3/3：注入矢量轨迹与排版调整...")
 
+# 轨迹颜色保持不变，它们在白色背景下同样鲜艳
 color_map = {
     'Run': '#FC4C02', 'Cycling': '#00DFD8', 'Ride': '#00DFD8',
     'Hike': '#FFC300', 'Walk': '#A855F7'
@@ -174,42 +176,10 @@ with open(result.files[0], 'r', encoding='utf-8') as f:
     svg_content = f.read()
 
 # ==========================================
-# 💥 1. 色彩扁平化 (统一高等级公路、普通道路与建筑) 💥
+# 💥 2. 移除旧的强制灰色滤镜逻辑 💥
+# (因为白色背景下我们不需要把背景色转成道路色)
 # ==========================================
-def color_to_gray(match):
-    val = match.group(1)
-    try:
-        if len(val) == 3:
-            r, g, b = int(val[0], 16)*17, int(val[1], 16)*17, int(val[2], 16)*17
-        else:
-            r, g, b = int(val[0:2], 16), int(val[2:4], 16), int(val[4:6], 16)
-        lum = 0.299 * r + 0.587 * g + 0.114 * b
-        
-        # 只要亮度大于某个极低值，全部强行判定为道路/建筑，并统一赋值相同的深灰色
-        if lum < 25:
-            return '#080808'  # 无边框极致深黑背景
-        else:
-            return '#2a2a2a'  # 统一的低调深灰道路
-    except:
-        return f'#{val}'
 
-def rgb_to_gray(match):
-    try:
-        r, g, b = int(match.group(1)), int(match.group(2)), int(match.group(3))
-        lum = 0.299 * r + 0.587 * g + 0.114 * b
-        if lum < 25:
-            return '#080808'
-        else:
-            return '#2a2a2a'
-    except:
-        return match.group(0)
-
-svg_content = re.sub(r'#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})\b', color_to_gray, svg_content)
-svg_content = re.sub(r'rgb\((\d+),\s*(\d+),\s*(\d+)\)', rgb_to_gray, svg_content)
-
-# ==========================================
-# 💥 2. 物理毁灭遮罩与无用图层 💥
-# ==========================================
 # 彻底移除原生的渐变遮罩定义和 Mask 属性
 svg_content = re.sub(r'<defs>.*?</defs>', '', svg_content, flags=re.IGNORECASE | re.DOTALL)
 svg_content = re.sub(r'\s*mask="[^"]+"', '', svg_content, flags=re.IGNORECASE)
@@ -220,8 +190,11 @@ svg_content = re.sub(r'<line\b.*?>', '', svg_content, flags=re.IGNORECASE | re.D
 
 
 # ==========================================
-# 3. 极简美学自适应排版 (保留之前完美比例)
+# 💥 3. 更新排版与前景颜色 (转为深色以便在白底显示) 💥
 # ==========================================
+# 定义新的前景颜色 (深灰色，例如 #2a2a2a)
+text_color_fg = "#2a2a2a"
+
 city_y_pos = height_px * 0.85       
 stats_y_pos = height_px * 0.885     
 
@@ -230,66 +203,52 @@ row3_y = height_px * 0.053
 
 f_large = width_px * 0.022          
 f_small = width_px * 0.018          
-col3_gap = width_px * 0.226         
-col2_gap = width_px * 0.113         
-line3_gap = width_px * 0.113        
 
+# 渲染城市标题 (使用新的 text_color_fg)
 city_letter_spacing = f"{width_px * 0.045:.1f}"
-city_title_block = f'<text x="{width_px / 2:.1f}" y="{city_y_pos:.1f}" font-family="Arial, Helvetica, sans-serif" font-size="{width_px * 0.06:.1f}" font-weight="bold" fill="#f0f0f0" xml:space="preserve" letter-spacing="{city_letter_spacing}" text-anchor="middle" opacity="0.9">{args.city.upper()}</text>\n'
+city_title_block = f'<text x="{width_px / 2:.1f}" y="{city_y_pos:.1f}" font-family="Arial, Helvetica, sans-serif" font-size="{width_px * 0.06:.1f}" font-weight="bold" fill="{text_color_fg}" xml:space="preserve" letter-spacing="{city_letter_spacing}" text-anchor="middle" opacity="0.9">{args.city.upper()}</text>\n'
 
+
+# 💥 构造内联的竖线分隔符 (使用新的 text_color_fg，透明度保持 0.25) 💥
+pipe_str = f'<tspan xml:space="preserve" fill="{text_color_fg}" opacity="0.25" font-size="{f_large * 1.1:.1f}">   |   </tspan>'
+
+# 💥 第一行：Runs, Rides, Hikes 💥
+row1_text = (
+    f'<tspan font-weight="bold" font-size="{f_large:.1f}">{run_count}</tspan><tspan xml:space="preserve"> Runs </tspan>'
+    f'<tspan font-weight="bold" font-size="{f_large:.1f}">{run_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>'
+    f'{pipe_str}'
+    f'<tspan font-weight="bold" font-size="{f_large:.1f}">{ride_count}</tspan><tspan xml:space="preserve"> Rides </tspan>'
+    f'<tspan font-weight="bold" font-size="{f_large:.1f}">{ride_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>'
+    f'{pipe_str}'
+    f'<tspan font-weight="bold" font-size="{f_large:.1f}">{hike_count}</tspan><tspan xml:space="preserve"> Hikes </tspan>'
+    f'<tspan font-weight="bold" font-size="{f_large:.1f}">{hike_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>'
+)
+
+# 💥 第二行：心率与海拔 💥
+row2_text = (
+    f'<tspan font-weight="bold" font-size="{f_large:.1f}">{int(total_avg_hr)}</tspan><tspan xml:space="preserve"> BPM Avg Heart Rate</tspan>'
+    f'{pipe_str}'
+    f'<tspan font-weight="bold" font-size="{f_large:.1f}">{int(total_elev_g)}</tspan><tspan xml:space="preserve"> m Elevation Gain</tspan>'
+)
+
+# 💥 第三行：总计 💥
+row3_text = (
+    f'<tspan font-weight="bold" font-size="{f_large:.1f}">{total_count}</tspan><tspan xml:space="preserve"> Workouts Total </tspan>'
+    f'<tspan font-weight="bold" font-size="{f_large:.1f}">{total_dist_km:.1f}</tspan><tspan xml:space="preserve"> km / </tspan>'
+    f'<tspan font-weight="bold" font-size="{f_large:.1f}">{total_time_h}</tspan><tspan xml:space="preserve"> h </tspan>'
+    f'<tspan font-weight="bold" font-size="{f_large:.1f}">{total_time_m}</tspan><tspan xml:space="preserve"> min</tspan>'
+)
+
+# 将三行文本组合成块 (使用 text_color_fg)
 stats_block = (
-    f'<g id="stats_block" transform="translate({width_px/2:.1f}, {stats_y_pos:.1f})" fill="#f0f0f0" font-family="Arial, Helvetica, sans-serif" font-size="{f_small:.1f}" text-anchor="middle">\n'
-    
-    f'  <g transform="translate(-{col3_gap:.1f}, 0)">\n'
-    f'    <text>\n'
-    f'      <tspan font-weight="bold" font-size="{f_large:.1f}">{run_count}</tspan><tspan xml:space="preserve"> Runs   </tspan>\n'
-    f'      <tspan font-weight="bold" font-size="{f_large:.1f}">{run_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
-    f'    </text>\n'
-    f'  </g>\n'
-
-    f'  <line x1="-{line3_gap:.1f}" y1="-{width_px * 0.012:.1f}" x2="-{line3_gap:.1f}" y2="{width_px * 0.003:.1f}" stroke="#f0f0f0" stroke-width="3" opacity="0.25" stroke-linecap="round" />\n'
-
-    f'  <g transform="translate(0, 0)">\n'
-    f'    <text>\n'
-    f'      <tspan font-weight="bold" font-size="{f_large:.1f}">{ride_count}</tspan><tspan xml:space="preserve"> Rides   </tspan>\n'
-    f'      <tspan font-weight="bold" font-size="{f_large:.1f}">{ride_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
-    f'    </text>\n'
-    f'  </g>\n'
-
-    f'  <line x1="{line3_gap:.1f}" y1="-{width_px * 0.012:.1f}" x2="{line3_gap:.1f}" y2="{width_px * 0.003:.1f}" stroke="#f0f0f0" stroke-width="3" opacity="0.25" stroke-linecap="round" />\n'
-
-    f'  <g transform="translate({col3_gap:.1f}, 0)">\n'
-    f'    <text>\n'
-    f'      <tspan font-weight="bold" font-size="{f_large:.1f}">{hike_count}</tspan><tspan xml:space="preserve"> Hikes   </tspan>\n'
-    f'      <tspan font-weight="bold" font-size="{f_large:.1f}">{hike_dist_km:.1f}</tspan><tspan xml:space="preserve"> km</tspan>\n'
-    f'    </text>\n'
-    f'  </g>\n'
-
-    f'  <g transform="translate(-{col2_gap:.1f}, {row2_y:.1f})">\n'
-    f'    <text>\n'
-    f'      <tspan font-weight="bold" font-size="{f_large:.1f}">{int(total_avg_hr)}</tspan><tspan xml:space="preserve"> BPM   </tspan>\n'
-    f'      <tspan opacity="0.9">Avg Heart Rate</tspan>\n'
-    f'    </text>\n'
-    f'  </g>\n'
-
-    f'  <line x1="0" y1="{row2_y - width_px * 0.010:.1f}" x2="0" y2="{row2_y + width_px * 0.005:.1f}" stroke="#f0f0f0" stroke-width="3" opacity="0.25" stroke-linecap="round" />\n'
-
-    f'  <g transform="translate({col2_gap:.1f}, {row2_y:.1f})">\n'
-    f'    <text>\n'
-    f'      <tspan font-weight="bold" font-size="{f_large:.1f}">{int(total_elev_g)}</tspan><tspan xml:space="preserve"> m   </tspan>\n'
-    f'      <tspan opacity="0.9">Elevation Gain</tspan>\n'
-    f'    </text>\n'
-    f'  </g>\n'
-
-    f'  <g transform="translate(0, {row3_y:.1f})">\n'
-    f'    <text>\n'
-    f'      <tspan font-weight="bold" font-size="{f_large:.1f}">{total_count}</tspan><tspan xml:space="preserve"> Workouts Total </tspan><tspan font-weight="bold" font-size="{f_large:.1f}">{total_dist_km:.1f}</tspan><tspan xml:space="preserve"> km / </tspan><tspan font-weight="bold" font-size="{f_large:.1f}">{total_time_h}</tspan><tspan xml:space="preserve"> h </tspan><tspan font-weight="bold" font-size="{f_large:.1f}">{total_time_m}</tspan><tspan xml:space="preserve"> min</tspan>\n'
-    f'    </text>\n'
-    f'  </g>\n'
+    f'<g id="stats_block" transform="translate({width_px/2:.1f}, {stats_y_pos:.1f})" fill="{text_color_fg}" font-family="Arial, Helvetica, sans-serif" font-size="{f_small:.1f}" text-anchor="middle">\n'
+    f'  <text transform="translate(0, 0)">{row1_text}</text>\n'
+    f'  <text transform="translate(0, {row2_y:.1f})">{row2_text}</text>\n'
+    f'  <text transform="translate(0, {row3_y:.1f})">{row3_text}</text>\n'
     f'</g>\n'
 )
 
-# 💥 这里去掉了 dark_glass，因为背景已经变成了纯色 #080808，不再需要额外的滤镜压暗了！💥
+# 💥 这里去掉了 dark_glass，因为背景已经是纯白 💥
 final_injection = [
     "\n".join(svg_injection_lines),
     city_title_block,
