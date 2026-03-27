@@ -69,7 +69,7 @@ result = generate_poster(
         lon=args.lon, 
         title="",        
         subtitle="",     
-        theme="dark",   # 使用暗色主题作为底板
+        theme="dark",   
         width_cm=21,
         height_cm=29.7,  
         distance_m=args.distance, 
@@ -174,7 +174,7 @@ with open(result.files[0], 'r', encoding='utf-8') as f:
     svg_content = f.read()
 
 # ==========================================
-# 💥 1. 黑白反转滤镜：纯黑背景 + 深灰路网 💥
+# 💥 1. 黑白反转滤镜：纯黑背景 + 提亮的灰色路网 💥
 # ==========================================
 def color_to_gray(match):
     val = match.group(1)
@@ -186,11 +186,11 @@ def color_to_gray(match):
         lum = 0.299 * r + 0.587 * g + 0.114 * b
         
         # 判断：如果原色是暗色背景，变成极致纯黑 #000000
-        # 如果原色是道路建筑，变成统一的深灰 #2a2a2a
+        # 如果原色是道路建筑，变成提亮的灰色 #444444 (原为 #2a2a2a)
         if lum < 35:
             return '#000000'
         else:
-            return '#2a2a2a'
+            return '#444444'
     except:
         return f'#{val}'
 
@@ -201,7 +201,7 @@ def rgb_to_gray(match):
         if lum < 35:
             return 'rgb(0,0,0)'
         else:
-            return 'rgb(42,42,42)'
+            return 'rgb(68,68,68)' # #444444 的 RGB 值
     except:
         return match.group(0)
 
@@ -218,7 +218,6 @@ svg_content = re.sub(r'<line\b.*?>', '', svg_content, flags=re.IGNORECASE | re.D
 # ==========================================
 # 💥 2. 极简自适应排版 (纯黑背景下的白字排版) 💥
 # ==========================================
-# 将字体颜色改回高对比度的高级白
 text_color_fg = "#f0f0f0"
 
 city_y_pos = height_px * 0.85       
@@ -229,11 +228,11 @@ row3_y = height_px * 0.053
 f_large = width_px * 0.022          
 f_small = width_px * 0.018          
 
-# 渲染城市标题 (亮色)
+# 渲染城市标题
 city_letter_spacing = f"{width_px * 0.045:.1f}"
 city_title_block = f'<text x="{width_px / 2:.1f}" y="{city_y_pos:.1f}" font-family="Arial, Helvetica, sans-serif" font-size="{width_px * 0.06:.1f}" font-weight="bold" fill="{text_color_fg}" xml:space="preserve" letter-spacing="{city_letter_spacing}" text-anchor="middle" opacity="0.9">{args.city.upper()}</text>\n'
 
-# 内联的竖线分隔符 (亮色，透明度0.25)
+# 内联的竖线分隔符
 pipe_str = f'<tspan xml:space="preserve" fill="{text_color_fg}" opacity="0.25" font-size="{f_large * 1.1:.1f}">   |   </tspan>'
 
 # 第一行
@@ -263,7 +262,7 @@ row3_text = (
     f'<tspan font-weight="bold" font-size="{f_large:.1f}">{total_time_m}</tspan><tspan xml:space="preserve"> min</tspan>'
 )
 
-# 将三行文本组合成块 (使用亮色渲染)
+# 将三行文本组合成块
 stats_block = (
     f'<g id="stats_block" transform="translate({width_px/2:.1f}, {stats_y_pos:.1f})" fill="{text_color_fg}" font-family="Arial, Helvetica, sans-serif" font-size="{f_small:.1f}" text-anchor="middle">\n'
     f'  <text transform="translate(0, 0)">{row1_text}</text>\n'
@@ -286,4 +285,4 @@ final_path = "colorful-map.svg"
 with open(final_path, 'w', encoding='utf-8') as f:
     f.write(svg_content)
 
-print(f"\n大功告成！纯黑 AMOLED 背景海报已生成：{final_path}")
+print(f"\n大功告成！路网已提亮的海报已生成：{final_path}")
