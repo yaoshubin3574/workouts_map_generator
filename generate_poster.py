@@ -110,8 +110,9 @@ with duckdb.connect() as conn:
 
 print("步骤 3/3：注入矢量轨迹与极简美学排版...")
 
+# 💥 修改：将 Cycling 和 Ride 的颜色修改为充满活力的亮绿色 (#22C55E) 💥
 color_map = {
-    'Run': '#FC4C02', 'Cycling': '#00DFD8', 'Ride': '#00DFD8',
+    'Run': '#FC4C02', 'Cycling': '#22C55E', 'Ride': '#22C55E',
     'Hike': '#FFC300', 'Walk': '#A855F7'
 }
 default_color = '#06D6A0'   
@@ -174,7 +175,7 @@ with open(result.files[0], 'r', encoding='utf-8') as f:
     svg_content = f.read()
 
 # ==========================================
-# 💥 1. 滤镜调色：纯白背景 + 浅灰色路网建筑 💥
+# 滤镜调色：纯白背景 + 浅灰色路网建筑
 # ==========================================
 def color_to_gray(match):
     val = match.group(1)
@@ -185,11 +186,10 @@ def color_to_gray(match):
             r, g, b = int(val[0:2], 16), int(val[2:4], 16), int(val[4:6], 16)
         lum = 0.299 * r + 0.587 * g + 0.114 * b
         
-        # 判断：原色是极暗背景则变成纯白；原色是道路建筑则变成浅灰
         if lum < 35:
             return '#ffffff'  # 纯白背景
         else:
-            return '#dddddd'  # 💥 统一的浅灰道路建筑 💥
+            return '#dddddd'  # 浅灰道路建筑
     except:
         return f'#{val}'
 
@@ -200,7 +200,7 @@ def rgb_to_gray(match):
         if lum < 35:
             return 'rgb(255,255,255)'
         else:
-            return 'rgb(221,221,221)' # #dddddd 的 RGB 值
+            return 'rgb(221,221,221)'
     except:
         return match.group(0)
 
@@ -214,7 +214,7 @@ svg_content = re.sub(r'<text\b.*?</text>', '', svg_content, flags=re.IGNORECASE 
 svg_content = re.sub(r'<line\b.*?>', '', svg_content, flags=re.IGNORECASE | re.DOTALL)
 
 # ==========================================
-# 💥 2. 自适应排版：纯黑文本 💥
+# 自适应排版：纯黑文本
 # ==========================================
 text_color_fg = "#000000"
 
@@ -230,7 +230,7 @@ f_small = width_px * 0.018
 city_letter_spacing = f"{width_px * 0.045:.1f}"
 city_title_block = f'<text x="{width_px / 2:.1f}" y="{city_y_pos:.1f}" font-family="Arial, Helvetica, sans-serif" font-size="{width_px * 0.06:.1f}" font-weight="bold" fill="{text_color_fg}" xml:space="preserve" letter-spacing="{city_letter_spacing}" text-anchor="middle" opacity="0.9">{args.city.upper()}</text>\n'
 
-# 内联的竖线分隔符 (黑色，透明度0.25呈现出高级灰)
+# 内联的竖线分隔符
 pipe_str = f'<tspan xml:space="preserve" fill="{text_color_fg}" opacity="0.25" font-size="{f_large * 1.1:.1f}">   |   </tspan>'
 
 # 第一行
@@ -283,4 +283,4 @@ final_path = "colorful-map.svg"
 with open(final_path, 'w', encoding='utf-8') as f:
     f.write(svg_content)
 
-print(f"\n大功告成！白底浅灰路网海报已生成：{final_path}")
+print(f"\n大功告成！白底绿线海报已生成：{final_path}")
