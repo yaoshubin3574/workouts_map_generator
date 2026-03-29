@@ -3,14 +3,14 @@ name: Workouts Poster Generator
 on:
   workflow_dispatch:
     inputs:
-      lon:
-        description: '中心点经度'
-        required: true
-        default: '113.94888774'
       lat:
         description: '中心点纬度'
         required: true
         default: '35.27972053'
+      lon:
+        description: '中心点经度'
+        required: true
+        default: '113.94888774'
       distance:
         description: '距离(米)'
         required: true
